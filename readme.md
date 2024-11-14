@@ -1,7 +1,10 @@
 # License Plate Recognition (LPR) BENCHMARK
 ## How to add models to the benchmark
-1. Add model into Models folder as .py file with unique name
-2. Create a function called ``predict()``:
+1. Add model/code and requirements into ``Models/YOUR_FOLDER_NAME/``.
+   Result should look like this: 
+   ``Models/example/example.py`` 
+   ``Models/example/requirements.txt``
+2. In your code, create a function called ``predict()``:
    - It must take one argument - path of the input photo (as ``string``)
    - It must return license plate characters (as ``string``)
 3. The function should contain or run only code needed to recognize license plate, meaning any unnecessary plots or ``print()`` functions shouldn't be present.
