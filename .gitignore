@@ -1,3 +1,4 @@
 *.jpg
 annotations.xml
-Results/**/*.txt
+**/Results/**/*.txt
+**/__pycache__/**
