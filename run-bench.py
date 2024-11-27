@@ -5,7 +5,10 @@ import os
 import time
 import re
 
+ENTRY_SCRIPT_NAME = 'bench_entry.py'
 DATA_PATH = 'data'
+MODELS_FOLDERS_PATH = 'Models'
+DEBUG = True
 def ensure_init_files(directory):
     for root, files in os.walk(directory):
         if '__init__.py' not in files:
@@ -31,31 +34,44 @@ def load_images():
    except Exception as e:
       print(f'[Error]: {e}')
       return []
+def has_entry_script(path):
+   entry_script_name = ENTRY_SCRIPT_NAME
+   for file in os.listdir(path):
+      if file == entry_script_name:
+         return True
+   return False
+
+def has_specified_attr(module, attr = 'predict'):
+   if not hasattr(module, attr):
+      return False
+   return True
       
-def import_models():
-    models_path = os.listdir('Models')
-    if not models_path:
-        print(f'[Error]: No folders found in Models/')
-        return []
-    
-    model_objects = []
-    
-    for folder in models_path:
-        folder_path = os.path.join('Models', folder)
-        if not os.path.isdir(folder_path):
-            continue
-        for file in os.listdir(folder_path):
-            if not file.endswith('.py') or file == '__init__.py':
-               continue
-            module_name = file[:-3]
-            module_path = f'Models.{folder}.{module_name}'
-            try:
-               module = importlib.import_module(module_path)
-               model_objects.append(module)
-            except Exception as e:
-               print(f'[Error]: Failed to import {module_path}: {e}')
-    
-    return model_objects
+def import_scripts():
+   folder_path = MODELS_FOLDERS_PATH
+   dirs = os.listdir(folder_path)
+   folders = []
+   for dir in dirs:
+      if not os.path.isdir(dir):
+         continue
+      folders.append(dir)
+   entry_scripts = []
+   for folder in folders:
+      try:
+         path = os.path.join(folder_path, folder)
+         ensure_init_files(path)
+         if not has_entry_script(path):
+            raise Exception(f'No entry script found in {path}')
+         entry_script = importlib.import_module(os.path.join(path, ENTRY_SCRIPT_NAME))
+         if not has_specified_attr(entry_script):
+            raise Exception(f'No specified attribute found in {path}')
+         entry_scripts.append(entry_script)
+         
+      except Exception as e:
+         print(f'[Error]: {e}')
+         continue
+      if not entry_scripts:
+         raise Exception('No entry scripts found!')
+   return entry_scripts
 
 def get_license_plate_number(img_path, xml_file_path):
    # Extract the image name from the path
@@ -75,24 +91,6 @@ def get_license_plate_number(img_path, xml_file_path):
                if attribute is not None and attribute.get('name') == 'plate number':
                   return attribute.text
    raise Exception(f'No plate number found for image {img_name} in {xml_file_path}')
- 
-def prepare_bench():
-   models = import_models()
-   print(f'[Info]: {len(models)} models found')
-   images = load_images()
-   try:
-      for model in models:
-         if not hasattr(model, 'predict'):
-            print(f'[Error]: {model} does not have a predict method')
-            continue
-         for img_path in images:
-            print(model.predict(img_path))
-         
-   except Exception as e:
-      print(f'[Error]: error occurred while preparing stage in model {model}: {e}')
-
-def print_results(model_name, status, results):
-   print(f'[Model]: {model_name}\t [Status]: {status}\t [Results]: {results}\t')
    
 def save_results(model_name, status, results):
    timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
@@ -110,14 +108,13 @@ def post_process_result(str):
    
    return extract_alphanumeric(str)
    
-def run_bench():
-   models = import_models()
-   print(f'[Info]: {len(models)} models found')
-   if not models:
-      print(f'[Error]: no models found')
-      raise Exception('No models found')
+def run_bench(log = True):
+   scripts = import_scripts()
+   if log: print(f'[Info]: Running benchmark with {len(scripts)} scripts')
+   images = load_images()
+   if log:  print(f'[Info]: {len(images)} images loaded')
    
-   for model in models:
+   for script in scripts:
       try:
          good_results = 0
          images = load_images()
@@ -125,26 +122,25 @@ def run_bench():
          for img_path in images:
             abs_path = os.path.abspath(img_path)
             img_name = os.path.basename(img_path).split('.')[0]
-            print(f'[Info]: Predicting image {img_name} in model {model.__name__}')
+            if log: print(f'[Info]: Predicting image {img_name} using {script.__name__}')
             try:
-               prediction = model.predict(abs_path)
+               prediction = script.predict(abs_path)
                prediction = post_process_result(prediction)
-               print(f'[Info]: Prediction: {prediction}, real value: {get_license_plate_number(abs_path, f'{DATA_PATH}/annotations.xml')}')
+               if log: print(f'[Info]: Prediction: {prediction}, real value: {get_license_plate_number(abs_path, f'{DATA_PATH}/annotations.xml')}')
             except Exception as e:
-               print(f'[Error]: error occurred while predicting image {img_path} in model {model.__name__}: {e}')
-               continue                     
+               if log: print(f'[Error]:{e} while predicting image {img_path} in model {script}')
+               continue
             
             if prediction == get_license_plate_number(abs_path, f'{DATA_PATH}/annotations.xml'):
                good_results += 1
                
          time_result = time.time() - start_time
-         result_args = (model.__name__, 'success', f'good results: {good_results}/{len(images)} in {time_result} seconds')
-         print_results(*result_args)
+         result_args = (script.__name__, 'success', f'good results: {good_results}/{len(images)} in {time_result} seconds')
+         if log: print(f'[Info]: {script.__name__} finished with {good_results}/{len(images)} good results in {time_result} seconds')
          save_results(*result_args)
-         
       except Exception as e:
          print(f'[Error]: error occured: {e}')
-         save_results(f'{model.__name__}', 'failed', f'error occurred: {e}')
+         save_results(f'{script.__name__}', 'failed', f'error occurred: {e}')
 
       
 def debug():
@@ -168,11 +164,7 @@ def debug():
       
 if __name__ == '__main__':
    start_time = time.time()
-   print('Preparing benchmark...')
-   prepare_bench()
-   print(f'Benchmark prepared in {time.time() - start_time} seconds')
-   print('Running benchmark...')
-   start_time = time.time()
+   print('Starting benchmark...')
    run_bench()
    print(f'Benchmark finished in {time.time() - start_time} seconds')
    # debug()

@@ -1,14 +1,22 @@
 # License Plate Recognition (LPR) BENCHMARK
-## How to add models to the benchmark
-1. Add model/code and requirements into ``Models/YOUR_FOLDER_NAME/``.
-   Result should look like this: 
-   ``Models/example/example.py`` 
-   ``Models/example/requirements.txt``
-2. In your code, create a function called ``predict()``:
-   - It must take one argument - path of the input photo (as ``string``)
-   - It must return license plate characters (as ``string``)
-3. The function should contain or run only code needed to recognize license plate, meaning any unnecessary plots or ``print()`` functions shouldn't be present.
-4. To run benchmark simply use ``run-bench.py`` and it should use all the recognized models and code located in Models folder.
+## How to add models and/or projects to the benchmark (*UPDATED VERSION*)
+1. In your project files, create an entry-point script wrapping all necessary scripts and functions called ``bench_entry.py``.
 
-## data
-photos should be downloaded manually from [kaggle](https://www.kaggle.com/datasets/piotrstefaskiue/poland-vehicle-license-plate-dataset) and pasted into data folder
+2. Entry-point script must contain function named ``predict()`` following the requirements:
+   - It must take one argument being path of the input photo (as ``string``)
+   - It must return predicted license plate characters (as ``string``)
+
+3. Add all files, entry-point python script and ``requirements.txt`` into ``Models/YOUR_FOLDER_NAME/`` like this: 
+   `Models`/
+   ├── `example`/
+   │   ├── `bench_entry.py`
+   │   ├── `requirements.txt`
+   │   ├── `other files...`
+
+## Adding photos to benchmark
+1. Go to [kaggle](https://www.kaggle.com/datasets/piotrstefaskiue/poland-vehicle-license-plate-dataset) and download dataset.
+2. Unzip file and paste photos into `data/photos` folder.
+## How to run benchmark
+1. Make sure you have properly followed previous points.
+2. Run `run-bench.py` script
+3. All logs will be printed in console, as well as saved in `Benchmark/Results/` folder.
