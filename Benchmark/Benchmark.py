@@ -1,10 +1,12 @@
 import xml.etree.ElementTree as ET
-import importlib
+import importlib.util
 import os
 import time
 import re
 
 class Benchmark:
+   SELF_DIR = os.path.dirname(os.path.abspath(__file__))
+   ROOT_PATH = os.path.abspath(os.path.join(SELF_DIR, '..'))
    ENTRY_SCRIPT_NAME = 'bench_entry.py'
    DATA_PATH = 'data'
    IMAGES_PATH = 'photos'
@@ -14,7 +16,7 @@ class Benchmark:
    DEBUG = True
    
    images = []
-   scripts = []
+   modules = []
    
    def ensure_init_files(self, directory):
     for root, files in os.walk(directory):
@@ -56,45 +58,42 @@ class Benchmark:
       return True
 
    def import_scripts(self):
-      if self.DEBUG: print(f'[Info]: Importing scripts from {self.MODELS_FOLDERS_PATH}')
-      folder_path = self.MODELS_FOLDERS_PATH
-      dirs = os.listdir(folder_path)
-      if self.DEBUG: print(f'[Info]: Found {len(dirs)} folders and files in {folder_path}')
-      folders = []
-      for dir in dirs:
-         dir = os.path.abspath(os.path.join(folder_path, dir))
-         if not os.path.isdir(dir):
-            print(f'[Info]: {dir} is not a directory. Skipping...')
+      folder_with_models = os.path.join(self.ROOT_PATH, self.MODELS_FOLDERS_PATH)
+      script_folders = [] 
+      entry_scripts = [] # as list of modules
+      print(f'[Info]: Importing scripts from {folder_with_models}')
+      
+      for dir in os.listdir(folder_with_models):
+         if dir.startswith('__'):
             continue
-         if dir == '__pycache__':
-            continue
-         if self.DEBUG: print(f'[Info]: Found model folder: {dir}')
-         folders.append(dir)
-      entry_scripts = []
-      for folder in folders:
+         print(f'[Info]: found "{dir}"')
+         script_folders.append(dir)
+         
+      for folder in script_folders:
+         files = os.listdir(os.path.join(folder_with_models, folder))
+         print(f'[Info]: Found {len(files)} files in {folder}')
+         print(files)
          try:
-            path = os.path.join(folder_path, folder)
-            if self.DEBUG: print(f'[Info]: Importing scripts from {path}')
+            # TODO: fix this, ref: https://docs.python.org/3/library/importlib.html                                    
             
-            self.ensure_init_files(path)
-            if self.DEBUG: print(f'[Info]: Checking for entry script in {path}: {self.has_entry_script(path)}')
-            if not self.has_entry_script(path):
-               raise Exception(f'No entry script found in {path}')
+            script_path = os.path.join(folder_with_models, folder, self.ENTRY_SCRIPT_NAME)
             
-            if self.DEBUG: print(f'[Info]: Importing entry script from {path}')
-            entry_script = importlib.import_module(os.path.join(path, self.ENTRY_SCRIPT_NAME))
-            if self.DEBUG: print(f'[Info]: Entry script found in {path}: {entry_script}')
-            if self.DEBUG: print(f'[Info]: Checking for specified attribute in {path}: {self.has_specified_attr(entry_script)}')
-            if not self.has_specified_attr(entry_script):
-               raise Exception(f'No specified attribute found in {path}')
-            if self.DEBUG: print(f'[Info]: Specified attribute found in {path}. adding to entry scripts: {entry_script}')
-            entry_scripts.append(entry_script)
-            
+            module_name = f"{script_path}_{self.ENTRY_SCRIPT_NAME[:-3]}"
+            spec = importlib.util.spec_from_file_location(module_name, script_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            if not self.has_specified_attr(module):
+               raise Exception(f'No {self.SPECIFIED_ATTRIBUTE} attribute found in {module_name}')
+            entry_scripts.append(module)
+            break
+         
          except Exception as e:
             print(f'[Error]: {e}')
             continue
-         if not entry_scripts:
-            raise Exception('No entry scripts found!')
+         
+      if not entry_scripts:
+         raise Exception('No entry scripts found!')
       return entry_scripts
    
    def get_license_plate_number(self, img_path, xml_file_path):

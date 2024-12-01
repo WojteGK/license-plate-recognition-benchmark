@@ -4,7 +4,7 @@ import importlib
 import os
 import time
 import re
-from Benchmark import Benchmark
+from Benchmark.Benchmark import Benchmark
 
       
 benchmark = Benchmark()
