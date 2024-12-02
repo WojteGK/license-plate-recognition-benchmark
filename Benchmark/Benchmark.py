@@ -17,7 +17,7 @@ class Benchmark:
    
    images = []
    modules = []
-   
+   # TODO: create venv dynamically in wsl; https://chatgpt.com/share/674c58e0-ecf0-800c-a6fe-75515fccd2b5
    def ensure_init_files(self, directory):
     for root, files in os.walk(directory):
         if '__init__.py' not in files:
@@ -68,16 +68,14 @@ class Benchmark:
             continue
          print(f'[Info]: found "{dir}"')
          script_folders.append(dir)
-         
+      print(f'[Info]: Found {len(script_folders)} folders with scripts: {script_folders}')
+      
       for folder in script_folders:
-         files = os.listdir(os.path.join(folder_with_models, folder))
-         print(f'[Info]: Found {len(files)} files in {folder}')
-         print(files)
          try:
-            # TODO: fix this, ref: https://docs.python.org/3/library/importlib.html                                    
-            
-            script_path = os.path.join(folder_with_models, folder, self.ENTRY_SCRIPT_NAME)
-            
+            if not self.has_entry_script(os.path.join(folder_with_models, folder)):
+               raise Exception(f'No {self.ENTRY_SCRIPT_NAME} found in {folder}')
+            print(f'[Info]: Importing {self.ENTRY_SCRIPT_NAME} from {folder}')
+            script_path = os.path.join(folder_with_models, folder, self.ENTRY_SCRIPT_NAME)         
             module_name = f"{script_path}_{self.ENTRY_SCRIPT_NAME[:-3]}"
             spec = importlib.util.spec_from_file_location(module_name, script_path)
             module = importlib.util.module_from_spec(spec)
@@ -85,8 +83,7 @@ class Benchmark:
 
             if not self.has_specified_attr(module):
                raise Exception(f'No {self.SPECIFIED_ATTRIBUTE} attribute found in {module_name}')
-            entry_scripts.append(module)
-            break
+            entry_scripts.append(module)            
          
          except Exception as e:
             print(f'[Error]: {e}')
