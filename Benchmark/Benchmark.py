@@ -14,6 +14,8 @@ class Benchmark:
    IMAGES_PATH = 'photos'
    MODELS_FOLDERS_PATH = 'Models'
    SPECIFIED_ATTRIBUTE = 'predict'
+   REQUIREMENTS_FILE = 'requirements.txt'
+   VENV_DIR = 'venv'
    DEBUG = True
    
    log_file = ''
@@ -179,7 +181,7 @@ class Benchmark:
             for img_path in images:
                abs_path = os.path.abspath(img_path)
                img_name = os.path.basename(img_path).split('.')[0]
-               self.log(f'Predicting image {img_name} using {script.__name__}')
+               self.log(f'Predicting image {img_name} using {os.path.basename(os.path.dirname(script.__name__))}')
                try:
                   prediction = script.predict(abs_path)
                   prediction = self.post_process_result(prediction)
@@ -190,10 +192,11 @@ class Benchmark:
                
                if prediction == self.get_license_plate_number(abs_path, f'{self.DATA_PATH}/annotations.xml'):
                   good_results += 1
-                  
+                                   
             time_result = time.time() - start_time         
-            self.log(f'{script.__name__} finished with {good_results}/{len(images)} good results in {time_result} seconds')
-            self.save_log()           
+            self.log(f'{script.__name__} finished with {good_results}/{len(images)} good results in {time_result} seconds')                      
          
          except Exception as e:
             self.log(f'[Error]: error occured: {e}', 2)
+         finally:
+            self.save_log()
