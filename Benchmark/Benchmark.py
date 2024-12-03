@@ -3,6 +3,8 @@ import importlib.util
 import os
 import time
 import re
+import subprocess
+import sys
 
 class Benchmark:
    SELF_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -12,12 +14,34 @@ class Benchmark:
    IMAGES_PATH = 'photos'
    MODELS_FOLDERS_PATH = 'Models'
    SPECIFIED_ATTRIBUTE = 'predict'
-   
    DEBUG = True
    
+   log_file = ''
    images = []
    modules = []
    # TODO: create venv dynamically in wsl; https://chatgpt.com/share/674c58e0-ecf0-800c-a6fe-75515fccd2b5
+   def log(self, msg, type = 0):
+      '''Creates a log with the given message. Type 0 is for info, 1 for warning, 2 for error'''
+      if type == 0:
+         print(f'[Info]: {msg}')
+         self.log_file += f'[Info]: {msg}\n'
+      elif type == 1:
+         print(f'[Warning]: {msg}')
+         self.log_file += f'[Warning]: {msg}\n'
+      elif type == 2:
+         print(f'[Error]: {msg}')
+         self.log_file += f'[Error]: {msg}\n'
+         
+   def create_virtualenv(self, path):
+      venv_path = os.path.join(path, self.VENV_DIR)
+      subprocess.run(['wsl', 'python3', '-m', 'venv', venv_path])
+      return venv_path
+   
+   def install_requirements(self, venv_path, requirements_file):
+      pip_path = os.path.join(venv_path, 'bin', 'pip')
+      subprocess.run(['wsl', pip_path, 'install', '-r', requirements_file])
+    
+      
    def ensure_init_files(self, directory):
     for root, files in os.walk(directory):
         if '__init__.py' not in files:
@@ -25,9 +49,10 @@ class Benchmark:
             try:
                with open(init_file_path, 'a'):
                   pass
-               print(f'Created: {init_file_path}')
-            except Exception as e:
-               print(f'[Error]: Failed to create {init_file_path}: {e}')
+               self.log(f'Created: {init_file_path}')
+               
+            except Exception as e:               
+               self.log(f'Failed to create {init_file_path}: {e}', 2)
                continue
    
    def load_images(self):
@@ -38,10 +63,10 @@ class Benchmark:
             images.append(str(os.path.join(images_directory, str(img_file))))
          return images
       except FileNotFoundError:
-         print(f'[Error]: {images_directory} not found')
+         self.log(f'{images_directory} not found', 2)
          return []
       except Exception as e:
-         print(f'[Error]: {e}')
+         self.log(f'{e}', 2)
          return []
    
    def has_entry_script(self, path):
@@ -61,21 +86,32 @@ class Benchmark:
       folder_with_models = os.path.join(self.ROOT_PATH, self.MODELS_FOLDERS_PATH)
       script_folders = [] 
       entry_scripts = [] # as list of modules
-      print(f'[Info]: Importing scripts from {folder_with_models}')
+      self.log(f'Importing scripts from {folder_with_models}')
       
       for dir in os.listdir(folder_with_models):
          if dir.startswith('__'):
             continue
-         print(f'[Info]: found "{dir}"')
+         self.log(f'found "{dir}"')
          script_folders.append(dir)
-      print(f'[Info]: Found {len(script_folders)} folders with scripts: {script_folders}')
+      self.log(f'Found {len(script_folders)} folders with scripts: {script_folders}')
       
       for folder in script_folders:
          try:
+            model_path = os.path.join(folder_with_models, folder)
             if not self.has_entry_script(os.path.join(folder_with_models, folder)):
                raise Exception(f'No {self.ENTRY_SCRIPT_NAME} found in {folder}')
-            print(f'[Info]: Importing {self.ENTRY_SCRIPT_NAME} from {folder}')
+            self.log(f'Importing {self.ENTRY_SCRIPT_NAME} from {folder}')
             script_path = os.path.join(folder_with_models, folder, self.ENTRY_SCRIPT_NAME)         
+            requirements_path = os.path.join(model_path, self.REQUIREMENTS_FILE)
+            # Create virtual environment
+            venv_path = self.create_virtualenv(model_path)
+            self.log(f'Created virtual environment at {venv_path}')
+            
+            # Install requirements
+            if os.path.exists(requirements_path):
+               self.install_requirements(venv_path, requirements_path)
+               self.log(f'Installed requirements from {requirements_path}')
+            
             module_name = f"{script_path}_{self.ENTRY_SCRIPT_NAME[:-3]}"
             spec = importlib.util.spec_from_file_location(module_name, script_path)
             module = importlib.util.module_from_spec(spec)
@@ -86,7 +122,7 @@ class Benchmark:
             entry_scripts.append(module)            
          
          except Exception as e:
-            print(f'[Error]: {e}')
+            self.log(f'{e}', 2)
             continue
          
       if not entry_scripts:
@@ -112,12 +148,12 @@ class Benchmark:
                      return attribute.text
       raise Exception(f'No plate number found for image {img_name} in {xml_file_path}')
 
-   def save_results(self, model_name, status, results):
+   def save_log(self):
       timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
       if not os.path.exists('Benchmark/Results'):
          os.makedirs('Benchmark/Results')
       with open(f'Benchmark/Results/benchmark_results_{timestamp}.txt', 'a') as file:
-         file.write(f'[{timestamp}]| [Model]: {model_name}\t [Status]: {status}\t [Results]: {results}\t')
+         file.write(self.log_file)
 
    def post_process_result(self, str):
       def extract_alphanumeric(input_string):
@@ -131,9 +167,9 @@ class Benchmark:
 
    def run(self, log = True):
       scripts = self.import_scripts()
-      if log: print(f'[Info]: Running benchmark with {len(scripts)} scripts')
+      self.log(f'Running benchmark with {len(scripts)} scripts')
       images = self.load_images()
-      if log:  print(f'[Info]: {len(images)} images loaded')
+      self.log(f'{len(images)} images loaded')
       
       for script in scripts:
          try:
@@ -143,23 +179,21 @@ class Benchmark:
             for img_path in images:
                abs_path = os.path.abspath(img_path)
                img_name = os.path.basename(img_path).split('.')[0]
-               if log: print(f'[Info]: Predicting image {img_name} using {script.__name__}')
+               self.log(f'Predicting image {img_name} using {script.__name__}')
                try:
                   prediction = script.predict(abs_path)
                   prediction = self.post_process_result(prediction)
-                  if log: print(f'[Info]: Prediction: {prediction}, real value: {self.get_license_plate_number(abs_path, f'{self.DATA_PATH}/annotations.xml')}')
+                  self.log(f'[Prediction: {prediction}, real value: {self.get_license_plate_number(abs_path, f'{self.DATA_PATH}/annotations.xml')}')
                except Exception as e:
-                  if log: print(f'[Error]:{e} while predicting image {img_path} in model {script}')
+                  self.log(f'{e} while predicting image {img_path} in model {script}', 2)
                   continue
                
                if prediction == self.get_license_plate_number(abs_path, f'{self.DATA_PATH}/annotations.xml'):
                   good_results += 1
                   
-            time_result = time.time() - start_time
-            result_args = (script.__name__, 'success', f'good results: {good_results}/{len(images)} in {time_result} seconds')
-            if log: print(f'[Info]: {script.__name__} finished with {good_results}/{len(images)} good results in {time_result} seconds')
-            self.save_results(*result_args)
+            time_result = time.time() - start_time         
+            self.log(f'{script.__name__} finished with {good_results}/{len(images)} good results in {time_result} seconds')
+            self.save_log()           
          
          except Exception as e:
-            print(f'[Error]: error occured: {e}')
-            self.save_results(f'{script.__name__}', 'failed', f'error occurred: {e}')
+            self.log(f'[Error]: error occured: {e}', 2)
