@@ -3,3 +3,4 @@ annotations.xml
 **/Results/**/*.txt
 **/__pycache__/**
 **/*venv
+**/YOLO*/**/Weights
