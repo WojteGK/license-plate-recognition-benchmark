@@ -16,7 +16,12 @@
 ## Adding photos to benchmark
 1. Go to [kaggle](https://www.kaggle.com/datasets/piotrstefaskiue/poland-vehicle-license-plate-dataset) and download dataset.
 2. Unzip file and paste photos into `data/photos` folder.
-## How to run benchmark
+## Manual run chosen model/subproject
 1. Make sure you have properly followed previous points.
-2. Run `run-bench.py` script
-3. All logs will be printed in console, as well as saved in `Benchmark/Results/` folder.
+2. Change directory to chosen model `cd ./Models/MODEL_NAME`
+3. Create venv using proper python version `virtualenv -p path/to/proper/python/version`
+4. Activate venv `./Scripts/activate`
+5. Install requirements `pip install -r requirements.txt`
+6. Adjust values like paths and number of iterations in `run_bench.py`
+7. Run `python run_bench.py`
+8. Results will be displayed in `Benchmark/data/` folder.
