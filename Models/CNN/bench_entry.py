@@ -24,11 +24,6 @@ def predict(image_path):
   cnn = load_model('modelCNN.h5')
   # make prediction
   plate_location = cnn.predict(resized_test_image_list)
-  print(plate_location)
-
-  plt.figure(figsize=(16,8))
-
-  plt.subplot(1, 3, 1)
 
   car_image_copy = resized_test_image_list[0].copy()
   car_image_copy = car_image_copy * 255
@@ -37,15 +32,11 @@ def predict(image_path):
   top_left = (int(plate_location[0][1] * 200), int(plate_location[0][3] * 200))
   bottom_right = (int(plate_location[0][0] * 200), int(plate_location[0][2] * 200))
 
-  print(top_left)
-  print(bottom_right)
-
-  plate_location_origianl_scale = list()
-  # display the car image with plate
+  # Zaznaczamy obszar tablicy rejestracyjnej w kolorze zielonym
   cv2.rectangle(car_image_copy, top_left, bottom_right, color=(0, 255, 0), thickness=2)
   plt.imshow(cv2.cvtColor(car_image_copy, cv2.COLOR_BGR2RGB))
 
-  # this is the location before normalization
+  # Przekształcamy lokalizację tablicy do oryginalnej skali
   plate_location_resized = plate_location[0] * 200
   test_image_size = test_image_orginal_size[0]
   height, width = test_image_size[0], test_image_size[1]
@@ -54,61 +45,45 @@ def predict(image_path):
   original_xMin = plate_location_resized[1] * (width / IMAGE_RESIZE_X)
   original_yMax = plate_location_resized[2] * (height / IMAGE_RESIZE_Y)
   original_yMin = plate_location_resized[3] * (height / IMAGE_RESIZE_Y)
-  plate_location_origianl_scale.append([int(original_xMax), int(original_xMin), int(original_yMax), int(original_yMin)])
+  plate_location_origianl_scale = [[int(original_xMax), int(original_xMin), int(original_yMax), int(original_yMin)]]
 
-  plt.figure(figsize=(30,10))
-
-  plt.subplot(1, len(orginal_test_image_list), 0+1)
 
   # copy the original image so that the original image stays unchanged
   image_copy = orginal_test_image_list[0].copy()
 
   # locate the corner of the plate
-  top_left = (plate_location_origianl_scale[0][1], plate_location_origianl_scale[0][3])
-  bottom_right = (plate_location_origianl_scale[0][0], plate_location_origianl_scale[0][2])
+  bottom_right = (plate_location_origianl_scale[0][0] + 60, plate_location_origianl_scale[0][2] + 30)
+  top_left = (plate_location_origianl_scale[0][1] - 60, plate_location_origianl_scale[0][3] - 30)
 
   # display plates
   cv2.rectangle(image_copy, top_left, bottom_right, color=(0, 255, 0), thickness=10)
-  plt.imshow(cv2.cvtColor(image_copy, cv2.COLOR_BGR2RGB))
+  plate_image = orginal_test_image_list[0][top_left[1]:bottom_right[1], top_left[0]:bottom_right[0], :]
 
-  plate_image_list = list()
-  plt.figure(figsize=(30,10))
-  plt.subplot(1, len(orginal_test_image_list), 1)
+  hsv = cv2.cvtColor(plate_image, cv2.COLOR_BGR2HSV)
+  lower_blue = np.array([100, 150, 50])
+  upper_blue = np.array([140, 255, 255])
 
-  # copy the original image so that the original image stays unchanged
-  image_copy = orginal_test_image_list[0].copy()
+  blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
+  plate_image[blue_mask > 0] = [255, 255, 255]
 
-  image_size = test_image_orginal_size[0]
-  image_height = image_size[0]
-  image_width = image_size[1]
+  height, width = plate_image.shape[:2]
+  new_width, new_height = int(width // 2.2), int(height // 2.2)
+  result = cv2.resize(plate_image, (new_width, new_height), interpolation=cv2.INTER_AREA)  
 
-  box_image_ratio_height = (plate_location_origianl_scale[0][2] - plate_location_origianl_scale[0][3]) / image_height
-  box_image_ratio_width = (plate_location_origianl_scale[0][0] - plate_location_origianl_scale[0][1]) / image_width
-
-  height_coef = 1 + ((1 / (np.log(box_image_ratio_height))**2) / 2)
-  width_coef = 1 + ((1 / (np.log(box_image_ratio_width))**2) / 2)
-  #print(height_coef, width_coef)
-
-  # locate the corner of the plate
-  top_left = (int(plate_location_origianl_scale[0][1] / width_coef), int(plate_location_origianl_scale[0][3] / height_coef))
-  bottom_right = (int(plate_location_origianl_scale[0][0] * width_coef), int(plate_location_origianl_scale[0][2] * height_coef))
-
-  # display plates
-  cv2.rectangle(image_copy, top_left, bottom_right, color=(0, 255, 0), thickness=3)
-  plt.imshow(cv2.cvtColor(image_copy, cv2.COLOR_BGR2RGB))
+  result = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
+  _, result = cv2.threshold(result, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+  result = cv2.erode(result, np.ones((3, 3), np.uint8), iterations=1)
+  result = cv2.dilate(result, np.ones((3, 3), np.uint8), iterations=1)
   
   plate_image = orginal_test_image_list[0][top_left[1]:bottom_right[1], top_left[0]:bottom_right[0],:]
   plate_image_list.append(plate_image)
 
-  reader = easyocr.Reader(['en'])
+  reader = easyocr.Reader(['en','pl'])
+  bounds = reader.readtext(result,contrast_ths=0.5, adjust_contrast=0.7)
 
-  plt.figure(figsize=(30,10))
-  for i, plate in enumerate(plate_image_list):
-    plt.subplot(1, len(plate_image_list), i+1)
-    plt.imshow(cv2.cvtColor(plate, cv2.COLOR_BGR2RGB))
-
-    bounds = reader.readtext(plate)
-    title_text = ''
-    for text in bounds:
+  title_text = ''
+  for text in bounds:
       title_text += text[1] + ' '
-    plt.title('Detected Plate Number: ' + title_text, fontdict={'fontsize':20})
+
+  return title_text
+
