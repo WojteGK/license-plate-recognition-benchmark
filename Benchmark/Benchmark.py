@@ -10,12 +10,10 @@ class Benchmark:
    ENTRY_SCRIPT_NAME = 'bench_entry.py'
    DATA_PATH = 'data'
    IMAGES_PATH = 'photos'
-   MODELS_FOLDERS_PATH = os.path.join('Models') # delete TEST after debugging
+   MODULE_FOLDERS_PATH = os.path.join('modules') # delete TEST after debugging
    REQUIREMENTS_FILE = 'requirements.txt'
-   ITERATIONS = 1
-   BENCH_RUNNER_FILE = 'bench_runner.py'
    log_file = ''
-   model_names = []
+   module_names = []
    
    def log(self, msg, type = 0):
       '''Creates a log with the given message. Type 0 is for info, 1 for warning, 2 for error'''
@@ -29,12 +27,12 @@ class Benchmark:
          print(f'[Error]: {msg}')
          self.log_file += f'[Error]: {msg}\n'
       
-   def load_model_names(self):
-      for folder in os.listdir(self.MODELS_FOLDERS_PATH):
+   def load_module_names(self):
+      for folder in os.listdir(self.MODULE_FOLDERS_PATH):
          if folder.startswith('__'):
             continue
-         if self.has_entry_script(os.path.join(self.MODELS_FOLDERS_PATH, folder)):
-            self.model_names.append(folder)
+         if self.has_entry_script(os.path.join(self.MODULE_FOLDERS_PATH, folder)):
+            self.module_names.append(folder)
 
    def ensure_init_files(self, directory):
       for root, dirs, files in os.walk(directory):
@@ -107,7 +105,7 @@ class Benchmark:
       return extract_alphanumeric(str)
 
    def run(self):
-      self.load_model_names()
+      self.load_module_names()
 
 if __name__ == '__main__':
    benchmark = Benchmark()
