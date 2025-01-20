@@ -1,11 +1,7 @@
 import xml.etree.ElementTree as ET
-import importlib.util
 import os
 import time
 import re
-import wexpect
-from wexpect.console_reader import ConsoleReaderPipe
-import sys
 from config import PY_VERSIONS, PY_PATHS
 
 class Benchmark:
@@ -32,79 +28,6 @@ class Benchmark:
       elif type == 2:
          print(f'[Error]: {msg}')
          self.log_file += f'[Error]: {msg}\n'
-   
-   def delete_virtualenv(self, model_name):
-      venv_path = os.path.join(self.ROOT_PATH, self.MODELS_FOLDERS_PATH, model_name, 'venv')
-      if not os.path.exists(venv_path):
-         return
-      session = wexpect.spawn(f'cmd.exe')
-      session.expect('>')
-      session.sendline(f'cd {self.ROOT_PATH}')
-      session.expect('>')
-      session.sendline(f'rmdir /s /q {venv_path}')
-      session.expect('>')
-      session.close()
-      
-   def create_virtualenv(self, model_name):
-      model_path = os.path.join(self.ROOT_PATH, self.MODELS_FOLDERS_PATH, model_name)
-      venv_path = os.path.join(model_path, 'venv')
-      
-      if os.path.exists(venv_path):
-         self.log(f'Virtualenv for {model_name} already exists', 1)
-      python_version = PY_VERSIONS[model_name]
-      python_path = PY_PATHS[python_version]
-      session = wexpect.spawn('cmd.exe')
-      session.expect('>')
-      session.sendline(f'cd {model_path}')
-      session.expect('>')
-      session.sendline(f'virtualenv -p {python_path} {venv_path}')      
-      session.expect(r'[a-zA-Z]:[\\\/]([^<>:"|?*\r\n]+[\\\/]?)*')
-      session.close()
-   
-   def stream_session_output(self, session, t_out=90):
-      try:
-         while True:
-               # Read the next line of output
-               line = session.readline().strip()
-               if not line:
-                  continue  # Skip if the line is empty
-               print('session output: ', line)  # Print the output in real-time
-      except wexpect.EOF:
-         print("Child process has finished.")
-      except Exception as e:
-         print(f"An error occurred: {e}")
-      finally:
-         session.close()  # Ensure the process is closed when finished
-      
-   def activate_virtualenv(self, model_name):
-      model_path = os.path.join(self.ROOT_PATH, self.MODELS_FOLDERS_PATH, model_name)
-      activation_script = os.path.join(model_path, 'venv', 'Scripts', 'activate')
-      session = wexpect.spawn('powershell.exe')
-      session.expect('>')
-      print('output: ', session.before)
-      session.sendline(f'cd {model_path}')
-      print('output: ', session.before)
-      session.expect('>')
-      print('output: ', session.before)
-      session.sendline(activation_script)
-      print('output: ', session.before)
-      session.expect('>', timeout=90)
-      print('output: ', session.before)
-      print(session)
-      return session
-      
-   def deactivate_virtualenv(self, session):
-      session.sendline('deactivate')
-      session.expect(wexpect.EOF)
-      
-   def install_requirements(self, model_name, current_session):
-      venv_path = os.path.join(self.ROOT_PATH, model_name, 'venv')
-      requirements_file = os.path.join(self.ROOT_PATH, self.MODELS_FOLDERS_PATH, model_name, self.REQUIREMENTS_FILE)
-      pip_path = os.path.join(venv_path, 'Scripts', 'pip')
-      session = current_session
-      session.sendline(f'pip install -r {requirements_file}')
-      self.stream_session_output(session)
-      session.expect(r"\(venv\) PS C:\\[^>]+", timeout=180)
       
    def load_model_names(self):
       for folder in os.listdir(self.MODELS_FOLDERS_PATH):
@@ -172,25 +95,6 @@ class Benchmark:
          os.makedirs(logs_path)
       with open(os.path.join(logs_path, f'bench_log_{timestamp}.txt'), 'a') as file:
          file.write(self.log_file)
-   def copy_bench_runner(self, model_name):
-      bench_runner_path = os.path.join(self.ROOT_PATH, 'Benchmark', 'run_helper.py')
-      model_path = os.path.join(self.ROOT_PATH, self.MODELS_FOLDERS_PATH, model_name)
-      dest_path = os.path.join(model_path, 'temp_runner.py')
-      try:
-         with open(bench_runner_path, 'r') as src_file:
-            with open(dest_path, 'w') as dest_file:
-               dest_file.write(src_file.read())
-      except Exception as e:
-         self.log(f'Failed to copy bench_runner.py to {model_name}: {e}', 2)
-         
-   def run_bench_runner(self, model_name, current_session):
-      bench_runner_path = os.path.join(self.ROOT_PATH, self.MODELS_FOLDERS_PATH, model_name, self.BENCH_RUNNER_FILE)
-      session = current_session
-      args = f'--project_name {model_name} --data_path {os.path.join(self.ROOT_PATH, self.DATA_PATH)} --iterations {self.ITERATIONS}'
-      session.expect('(venv)')
-      session.sendline(f'python -m {bench_runner_path} {args}')
-      session.expect(wexpect.EOF, timeout=self.ITERATIONS * 150)
-      self.log(f'Finished running bench_runner.py for {model_name}.')
    
    def post_process_result(self, str):
       def extract_alphanumeric(input_string):
@@ -204,14 +108,6 @@ class Benchmark:
 
    def run(self):
       self.load_model_names()
-      for model_name in self.model_names:
-         self.CURRENT_MODEL = model_name
-         self.ensure_init_files(os.path.join(self.MODELS_FOLDERS_PATH, model_name))
-         self.create_virtualenv(self.CURRENT_MODEL)
-         current_session = self.activate_virtualenv(self.CURRENT_MODEL)
-         self.install_requirements(self.CURRENT_MODEL, current_session)
-         self.copy_bench_runner(self.CURRENT_MODEL)
-         self.run_bench_runner(self.CURRENT_MODEL, current_session)
 
 if __name__ == '__main__':
    benchmark = Benchmark()
