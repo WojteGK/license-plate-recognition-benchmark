@@ -3,6 +3,7 @@ import os
 import time
 import re
 from config import PY_VERSIONS, PY_PATHS
+import subprocess
 
 class Benchmark:
    SELF_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -10,7 +11,7 @@ class Benchmark:
    ENTRY_SCRIPT_NAME = 'bench_entry.py'
    DATA_PATH = 'data'
    IMAGES_PATH = 'photos'
-   MODULE_FOLDERS_PATH = os.path.join('modules') # delete TEST after debugging
+   MODULE_FOLDERS_PATH = 'modules'
    REQUIREMENTS_FILE = 'requirements.txt'
    log_file = ''
    module_names = []
@@ -34,6 +35,34 @@ class Benchmark:
          if self.has_entry_script(os.path.join(self.MODULE_FOLDERS_PATH, folder)):
             self.module_names.append(folder)
 
+   def get_module_python_version(self, module_name):
+      if module_name in PY_VERSIONS:
+         return PY_VERSIONS[module_name]
+      else:
+         raise Exception(f'Python version not found for module {module_name} in config.py')
+      
+   def setup_venv(self, module_name):
+      python_version = self.get_module_python_version(module_name)
+      python_path = PY_PATHS[python_version]
+      module_path = os.path.join(self.MODULE_FOLDERS_PATH, module_name)
+      venv_path = os.path.join(module_path, 'venv')
+      python_exe = os.path.join(venv_path, "Scripts", "python.exe")
+      if not os.path.exists(venv_path):
+         try:
+            subprocess.run([python_path, '-m', 'venv', venv_path], check=True)
+            self.log(f'Venv created for {module_name}')
+         except subprocess.CalledProcessError as e:
+            self.log(f'Failed to create venv for {module_name}: {e}', type=2)
+      else:
+         self.log(f'Venv already exists for {module_name}')
+      requirements_path = os.path.join(module_path, self.REQUIREMENTS_FILE)
+      if os.path.exists(requirements_path):
+         try:
+            subprocess.run([python_exe, '-m', 'pip', 'install', '-r', requirements_path], check=True)
+            self.log(f'Requirements installed for {module_name}')
+         except subprocess.CalledProcessError as e:
+            self.log(f'Failed to install requirements for {module_name}: {e}', type=2)
+           
    def ensure_init_files(self, directory):
       for root, dirs, files in os.walk(directory):
          init_file_path = os.path.join(root, '__init__.py')
@@ -104,8 +133,57 @@ class Benchmark:
       
       return extract_alphanumeric(str)
 
+   def generate_temp_runner(self, module_name):
+      helper_path = os.path.join(self.SELF_DIR, 'run_helper.py')
+      bench_entry_path = os.path.join(self.MODULE_FOLDERS_PATH, module_name, self.ENTRY_SCRIPT_NAME)
+      output_path = os.path.join(self.MODULE_FOLDERS_PATH, module_name, 'temp_runner.py')
+      with open(helper_path, 'r') as helper_file:
+         helper_content = helper_file.readlines()
+
+      with open(bench_entry_path, 'r') as bench_file:
+         bench_content = bench_file.readlines()
+         
+      if os.path.exists(output_path):
+         os.remove(output_path)
+         
+      with open(output_path, 'w') as output_file:
+         output_file.writelines(bench_content)
+         output_file.writelines(helper_content)
+      self.log(f'Generated temp runner for {module_name}')
+   
+   def setup_module(self, module_name):
+      self.log(f'Preparing {module_name}...')
+      self.setup_venv(module_name)
+      self.generate_temp_runner(module_name)
+   
+   def run_bench_module(self, module_name, iterations):
+      module_path = os.path.join(self.MODULE_FOLDERS_PATH, module_name)
+      venv_path = os.path.join(module_path, 'venv')
+      python_exe = os.path.join(venv_path, "Scripts", "python.exe")
+      temp_runner_path = os.path.join(module_path, 'temp_runner.py')
+      try:
+         self.log(f'Running benchmark for {module_name}...')
+         subprocess.run([python_exe, temp_runner_path, 
+                        '-n', module_name,
+                        '-d', self.DATA_PATH,
+                        '-i', str(iterations),
+                        '-r', self.ROOT_PATH,
+                        ], check=True)
+      except subprocess.CalledProcessError as e:
+         self.log(f'Failed to run benchmark for {module_name}: {e}', type=2)
+         print(f'Failed to run benchmark for {module_name}: {e}')
+      
    def run(self):
       self.load_module_names()
+      print(f'Modules found: {self.module_names}')
+      self.load_images()
+      print(f'Images found: {len(self.images)}')
+      for module_name in self.module_names:
+         try:
+            self.setup_module(module_name)
+            self.run_bench_module(module_name, 1)
+         except Exception as e:
+            self.log(f'Failed to run benchmark for {module_name}: {e}', type=2)
 
 if __name__ == '__main__':
    benchmark = Benchmark()

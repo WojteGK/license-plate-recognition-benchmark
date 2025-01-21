@@ -1,14 +1,15 @@
+
 import os
 import re
 import xml.etree.ElementTree as ET
 import time
 import argparse
-from bench_entry import predict
 
 def main(args):
    DATA_PATH = args.data_path
    PROJ_NAME = args.project_name
    ITERATIONS = args.iterations
+   RESULTS_PATH = args.results_path
    def post_process_result(str):
       def extract_alphanumeric(input_string):
          alphanumeric_characters = re.findall(r'[A-Za-z0-9]', input_string)
@@ -56,7 +57,9 @@ def main(args):
          if post_process_result(pred) == rv:
                result += 1
       print(f"Accuracy: {result/len(images)}, Time: {end_time - start_time}")
-      with open(os.path.join(f'{DATA_PATH}', 'Results', '{PROJ_NAME}_results.txt'), 'a') as f:
+      if not os.path.exists(os.path.join(f'{RESULTS_PATH}', 'Results')):
+         os.makedirs(os.path.join(f'{RESULTS_PATH}', 'Results'))
+      with open(os.path.join(f'{RESULTS_PATH}', 'Results', f'{PROJ_NAME}_results.txt'), 'a') as f:
          f.write(f"[{PROJ_NAME}] (Iteration {i + 1}): Accuracy: {result/len(images)}, Time: {end_time - start_time}\n")
          
 if __name__ == '__main__':
@@ -64,4 +67,5 @@ if __name__ == '__main__':
    argparser.add_argument('-n', '--project_name', type=str, required=True)
    argparser.add_argument('-d', '--data_path', type=str, required=True)
    argparser.add_argument('-i', '--iterations', type=int, default=10)
-   
+   argparser.add_argument('-r', '--results_path', type=str, required=True)
+   main(argparser.parse_args())

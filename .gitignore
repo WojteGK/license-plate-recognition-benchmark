@@ -4,3 +4,4 @@ annotations.xml
 **/__pycache__/**
 **/*venv
 **/YOLO*/**/Weights
+**/temp_runner.py
