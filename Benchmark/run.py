@@ -1,4 +1,4 @@
-from Benchmark.Benchmark import Benchmark
+from Benchmark import Benchmark
       
 benchmark = Benchmark()
 benchmark.run()

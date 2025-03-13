@@ -81,7 +81,6 @@ def predict(image_path):
   result = cv2.dilate(result, np.ones((3, 3), np.uint8), iterations=1)
   
   plate_image = orginal_test_image_list[0][top_left[1]:bottom_right[1], top_left[0]:bottom_right[0],:]
-  plate_image_list.append(plate_image)
 
   reader = easyocr.Reader(['en','pl'])
   bounds = reader.readtext(result,contrast_ths=0.5, adjust_contrast=0.7)

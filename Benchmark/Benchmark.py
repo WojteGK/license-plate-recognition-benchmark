@@ -157,18 +157,21 @@ class Benchmark:
       self.generate_temp_runner(module_name)
    
    def run_bench_module(self, module_name, iterations):
-      module_path = os.path.join(self.MODULE_FOLDERS_PATH, module_name)
+      module_path = os.path.join(self.ROOT_PATH,self.MODULE_FOLDERS_PATH, module_name)
+      print('module_path: ' + module_path) # problems with paths
       venv_path = os.path.join(module_path, 'venv')
       python_exe = os.path.join(venv_path, "Scripts", "python.exe")
       temp_runner_path = os.path.join(module_path, 'temp_runner.py')
       try:
          self.log(f'Running benchmark for {module_name}...')
+         print(os.getcwd())
          subprocess.run([python_exe, temp_runner_path, 
                         '-n', module_name,
                         '-d', self.DATA_PATH,
                         '-i', str(iterations),
                         '-r', self.ROOT_PATH,
-                        ], check=True)
+                        ], check=True, cwd=os.path.join(self.ROOT_PATH, self.MODULE_FOLDERS_PATH, module_name)) # problems with paths (cwd)
+         print(os.getcwd())
       except subprocess.CalledProcessError as e:
          self.log(f'Failed to run benchmark for {module_name}: {e}', type=2)
          print(f'Failed to run benchmark for {module_name}: {e}')

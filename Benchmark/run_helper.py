@@ -43,7 +43,7 @@ def main(args):
       real_values.append(get_license_plate_number(img, xml_path))
    print("found real values: " + str(len(real_values)))
 
-   for i in range(ITERATIONS):
+   for i in range(int(ITERATIONS)):
       result = 0
       start_time = time.time()
       for img in images:
